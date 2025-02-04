@@ -44,6 +44,11 @@ from zerver.models import (
     UserProfile,
 )
 from zerver.models.groups import SystemGroups
+
+SYSTEM_USER_GROUP_ROLE_MAP = {
+    SystemGroups.EVERYONE: [UserProfile.ROLE_MEMBER, UserProfile.ROLE_REALM_OWNER],
+    SystemGroups.NOBODY: []
+}
 from zerver.models.realm_audit_logs import AuditLogEventType
 from zerver.models.streams import (
     bulk_get_streams,
@@ -137,11 +142,12 @@ def send_stream_creation_event(
     user_ids: list[int],
     recent_traffic: dict[int, int] | None = None,
     setting_groups_dict: dict[int, int | AnonymousSettingGroupDict] | None = None,
+    acting_user: UserProfile | None = None,
 ) -> None:
     event = dict(
         type="stream",
         op="create",
-        streams=[stream_to_dict(stream, recent_traffic, setting_groups_dict)],
+        streams=[stream_to_dict(stream, recent_traffic, setting_groups_dict, acting_user)],
     )
     send_event_on_commit(realm, event, user_ids)
 
@@ -1093,6 +1099,7 @@ def stream_to_dict(
     stream: Stream,
     recent_traffic: dict[int, int] | None = None,
     setting_groups_dict: dict[int, int | AnonymousSettingGroupDict] | None = None,
+    acting_user: UserProfile | None = None,
 ) -> APIStreamDict:
     if recent_traffic is not None:
         stream_weekly_traffic = get_average_weekly_stream_traffic(
@@ -1106,7 +1113,9 @@ def stream_to_dict(
         # the traffic data, like when deactivating a stream, and
         # passing stream data to spectators.
         stream_weekly_traffic = None
-
+        
+        
+    
     assert setting_groups_dict is not None
     can_add_subscribers_group = setting_groups_dict[stream.can_add_subscribers_group_id]
     can_administer_channel_group = setting_groups_dict[stream.can_administer_channel_group_id]
@@ -1116,6 +1125,15 @@ def stream_to_dict(
     stream_post_policy = get_stream_post_policy_value_based_on_group_setting(
         stream.can_send_message_group
     )
+    
+    if can_add_subscribers_group.is_system_group:
+       allowed_roles = SYSTEM_USER_GROUP_ROLE_MAP.get(can_add_subscribers_group.name) 
+       if allowed_roles is None or acting_user.role not in allowed_roles:
+        raise JsonableError("Insufficient permission")
+    else:
+        if not acting_user.is_in_group(can_add_subscribers_group):
+                   can_add_subscribers_group = setting_groups_dict[stream.can_add_subscribers_group_id]     
+                   raise JsonableError("Insufficient permission")
 
     return APIStreamDict(
         is_archived=stream.deactivated,
@@ -1139,6 +1157,7 @@ def stream_to_dict(
         is_announcement_only=stream_post_policy == Stream.STREAM_POST_POLICY_ADMINS,
         stream_weekly_traffic=stream_weekly_traffic,
     )
+    
 
 
 def get_web_public_streams(realm: Realm) -> list[APIStreamDict]:  # nocoverage
