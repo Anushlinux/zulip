@@ -164,7 +164,7 @@ export function is_message_editable_ignoring_permissions(message: Message): bool
     if (currently_echoing_messages.has(message.id)) {
         return false;
     }
-    return true;
+    return false;
 }
 
 export function is_content_editable(message: Message, edit_limit_seconds_buffer = 0): boolean {
