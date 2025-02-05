@@ -1125,15 +1125,6 @@ def stream_to_dict(
     stream_post_policy = get_stream_post_policy_value_based_on_group_setting(
         stream.can_send_message_group
     )
-    
-    if can_add_subscribers_group.is_system_group:
-       allowed_roles = SYSTEM_USER_GROUP_ROLE_MAP.get(can_add_subscribers_group.name) 
-       if allowed_roles is None or acting_user.role not in allowed_roles:
-        raise JsonableError("Insufficient permission")
-    else:
-        if not acting_user.is_in_group(can_add_subscribers_group):
-                   can_add_subscribers_group = setting_groups_dict[stream.can_add_subscribers_group_id]     
-                   raise JsonableError("Insufficient permission")
 
     return APIStreamDict(
         is_archived=stream.deactivated,
@@ -1158,7 +1149,22 @@ def stream_to_dict(
         stream_weekly_traffic=stream_weekly_traffic,
     )
     
+def validate_subscribers_group(can_add_subscribers_group, stream, setting_groups_dict, acting_user):
+    if isinstance(can_add_subscribers_group, int):
+        group_obj = setting_groups_dict.get(stream.can_add_subscribers_group_id)
+        if group_obj is None:
+            raise JsonableError("Invalid group configuration")
+    else:
+        group_obj = can_add_subscribers_group
 
+    if group_obj.is_system_group:
+        allowed_roles = SYSTEM_USER_GROUP_ROLE_MAP.get(group_obj.name)
+        if allowed_roles is None or acting_user.role not in allowed_roles:
+            raise JsonableError("Insufficient permission")
+    else:
+        if not acting_user.is_in_group(group_obj):
+            raise JsonableError("Insufficient permission")
+    return group_obj
 
 def get_web_public_streams(realm: Realm) -> list[APIStreamDict]:  # nocoverage
     query = get_web_public_streams_queryset(realm)
