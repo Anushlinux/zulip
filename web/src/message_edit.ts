@@ -167,6 +167,8 @@ export function is_message_editable_ignoring_permissions(message: Message): bool
     return true;
 }
 
+sdfsdf
+
 export function is_content_editable(message: Message, edit_limit_seconds_buffer = 0): boolean {
     if (!is_message_editable_ignoring_permissions(message)) {
         return false;
