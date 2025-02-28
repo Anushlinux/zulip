@@ -350,6 +350,10 @@
         var(--color-message-content-container-border-approaching-limit);
 }
 
+.message_edit_content {
+    resize: vertical !important;
+}
+
 #message-content-container:has(.new_message_textarea.textarea-over-limit.flash),
 #message-content-container:has(
         .new_message_textarea.textarea-approaching-limit.flash
